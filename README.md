@@ -3,7 +3,18 @@
 ## Backend
 
 The FastAPI backend provides a health check and a chat endpoint connected to
-Gemini through LangChain.
+Gemini through LangChain. Its initial structure separates HTTP routes, data
+schemas, application settings, and the model-calling service:
+
+```text
+backend/
+└── app/
+    ├── api/routes/    # HTTP endpoints
+    ├── core/          # Environment-based configuration
+    ├── schemas/       # Request and response models
+    ├── services/      # Gemini/LangChain interaction
+    └── main.py        # FastAPI app assembly and middleware
+```
 
 ### Run locally
 
@@ -13,7 +24,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 if [ ! -f .env ]; then cp .env.example .env; fi
-uvicorn main:app --reload
+uvicorn app.main:app --reload
 ```
 
 Add your Gemini API key to `backend/.env`:
