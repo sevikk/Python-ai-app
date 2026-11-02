@@ -39,9 +39,7 @@ describe('App', () => {
 
     const sending = fixture.componentInstance['sendMessage']('Hello');
 
-    const request = httpTestingController.expectOne(
-      'https://python-ai-chat-api.onrender.com/chat',
-    );
+    const request = httpTestingController.expectOne('http://localhost:8000/chat');
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({ message: 'Hello' });
     request.flush({ reply: 'Hello there!' });

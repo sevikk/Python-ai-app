@@ -82,7 +82,10 @@ npm start
 ```
 
 Open `http://localhost:4200`. The Angular chat sends messages to the backend at
-`http://localhost:8000/chat`; start the backend first.
+`http://localhost:8000/chat`; start the backend first. Angular uses
+`frontend/src/environments/environment.ts` for local development and replaces
+it with `environment.prod.ts` during a production build. The production API URL
+is configured there for the Render service.
 
 ### Try the API
 
