@@ -1,0 +1,115 @@
+<main class="chat-shell">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="AI Chat home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M12 2.8 14.3 9.7 21.2 12l-6.9 2.3L12 21.2l-2.3-6.9L2.8 12l6.9-2.3L12 2.8Z" />
+          <path d="m19 2 .8 2.2L22 5l-2.2.8L19 8l-.8-2.2L16 5l2.2-.8L19 2Z" />
+        </svg>
+      </span>
+      <span>ai chat</span>
+    </a>
+
+    <div class="model-badge">
+      <span class="status-dot" aria-hidden="true"></span>
+      Gemini
+    </div>
+  </header>
+
+  <section class="conversation" aria-label="Chat with AI">
+    <div class="messages" aria-live="polite">
+      @if (messages().length === 0) {
+        <div class="welcome">
+          <div class="welcome-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M12 2.8 14.3 9.7 21.2 12l-6.9 2.3L12 21.2l-2.3-6.9L2.8 12l6.9-2.3L12 2.8Z" />
+              <path d="m19 2 .8 2.2L22 5l-2.2.8L19 8l-.8-2.2L16 5l2.2-.8L19 2Z" />
+            </svg>
+          </div>
+          <p class="eyebrow">YOUR AI ASSISTANT</p>
+          <h1>How can I help?</h1>
+          <p class="welcome-copy">
+            Ask a question, explore an idea, or get help with a task.
+          </p>
+
+          <div class="suggestions" aria-label="Suggested prompts">
+            @for (suggestion of suggestions; track suggestion) {
+              <button
+                class="suggestion"
+                type="button"
+                (click)="sendMessage(suggestion)"
+              >
+                <span aria-hidden="true">↗</span>
+                {{ suggestion }}
+              </button>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="message-list">
+          @for (message of messages(); track $index) {
+            <article
+              class="message-row"
+              [class.user-row]="message.role === 'user'"
+            >
+              @if (message.role === 'assistant') {
+                <div class="assistant-avatar" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M12 3.5 14 9.5l6 2.5-6 2-2 6.5-2-6.5-6-2.5 6-2 2-6Z" />
+                  </svg>
+                </div>
+              }
+              <div class="message-bubble" [class.user-bubble]="message.role === 'user'">
+                {{ message.content }}
+              </div>
+            </article>
+          }
+
+          @if (isSending()) {
+            <div class="message-row" aria-label="AI is generating a response">
+              <div class="assistant-avatar" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M12 3.5 14 9.5l6 2.5-6 2-2 6.5-2-6.5-6-2.5 6-2 2-6Z" />
+                </svg>
+              </div>
+              <div class="message-bubble typing" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="composer-area">
+      @if (error()) {
+        <p class="error-message" role="alert">{{ error() }}</p>
+      }
+      <form class="composer" (ngSubmit)="sendMessage()">
+        <textarea
+          aria-label="Your message"
+          [ngModel]="draft()"
+          (ngModelChange)="draft.set($event)"
+          name="message"
+          placeholder="Write a message..."
+          rows="1"
+          [disabled]="isSending()"
+          (keydown.enter)="sendMessage(); $event.preventDefault()"
+        ></textarea>
+        <button
+          class="send-button"
+          type="submit"
+          [disabled]="!draft().trim() || isSending()"
+          aria-label="Send message"
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 19V5m0 0L6 11m6-6 6 6" />
+          </svg>
+        </button>
+      </form>
+      <p class="disclaimer">
+        AI can make mistakes. Don’t share sensitive information.
+      </p>
+    </div>
+  </section>
+</main>

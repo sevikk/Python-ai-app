@@ -1,0 +1,4 @@
+fastapi
+uvicorn[standard]
+langchain-google-genai>=2.1.12,<3
+python-dotenv
