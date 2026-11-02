@@ -9,7 +9,7 @@ export interface ChatResponse {
 @Injectable({ providedIn: 'root' })
 export class ChatApiService {
   private readonly http = inject(HttpClient);
-  private readonly apiUrl = 'http://localhost:8000/chat';
+  private readonly apiUrl = 'https://python-ai-chat-api.onrender.com/chat';
 
   sendMessage(message: string): Observable<ChatResponse> {
     return this.http.post<ChatResponse>(this.apiUrl, { message });
