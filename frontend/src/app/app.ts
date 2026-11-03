@@ -2,12 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
-import { ChatApiService } from './chat-api.service';
-
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
+import { ChatApiService, ChatMessage } from './chat-api.service';
 
 @Component({
   imports: [FormsModule],
@@ -40,7 +35,10 @@ export class App {
     this.isSending.set(true);
 
     try {
-      const response = await firstValueFrom(this.chatApi.sendMessage(content));
+      const conversation = this.messages().slice(-20);
+      const response = await firstValueFrom(
+        this.chatApi.sendMessage(conversation),
+      );
       this.messages.update((messages) => [
         ...messages,
         { role: 'assistant', content: response.reply },

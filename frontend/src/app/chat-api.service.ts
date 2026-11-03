@@ -7,12 +7,17 @@ export interface ChatResponse {
   reply: string;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ChatApiService {
   private readonly http = inject(HttpClient);
   private readonly apiUrl = environment.apiUrl;
 
-  sendMessage(message: string): Observable<ChatResponse> {
-    return this.http.post<ChatResponse>(this.apiUrl, { message });
+  sendMessage(messages: ChatMessage[]): Observable<ChatResponse> {
+    return this.http.post<ChatResponse>(this.apiUrl, { messages });
   }
 }

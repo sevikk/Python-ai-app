@@ -4,6 +4,7 @@ import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
+import { ChatMessage } from './chat-api.service';
 import { App } from './app';
 
 describe('App', () => {
@@ -37,15 +38,25 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    const sending = fixture.componentInstance['sendMessage']('Hello');
+    const history: ChatMessage[] = [
+      { role: 'user', content: 'My name is Alex.' },
+      { role: 'assistant', content: 'Nice to meet you, Alex.' },
+    ];
+    fixture.componentInstance['messages'].set(history);
+    const sending = fixture.componentInstance['sendMessage']('What is my name?');
 
     const request = httpTestingController.expectOne('http://localhost:8000/chat');
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ message: 'Hello' });
-    request.flush({ reply: 'Hello there!' });
+    expect(request.request.body).toEqual({
+      messages: [
+        ...history,
+        { role: 'user', content: 'What is my name?' },
+      ],
+    });
+    request.flush({ reply: 'Your name is Alex.' });
 
     await sending;
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Hello there!');
+    expect(fixture.nativeElement.textContent).toContain('Your name is Alex.');
   });
 });

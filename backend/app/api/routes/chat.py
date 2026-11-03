@@ -22,7 +22,7 @@ def chat(request: ChatRequest) -> ChatResponse:
 
     try:
         reply = generate_reply(
-            message=request.message,
+            messages=request.messages,
             api_key=api_key,
             model_name=get_gemini_model(),
         )

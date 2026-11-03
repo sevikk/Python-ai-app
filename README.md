@@ -107,6 +107,9 @@ curl -X POST http://localhost:8000/chat \
   -d '{"message":"Привет"}'
 ```
 
-`/chat` sends the message to Gemini and returns its response. If the key is
-missing, the endpoint responds with `503`; if Gemini rejects the request, it
-responds with `502` and logs the provider error in the backend.
+`/chat` accepts a `messages` array containing recent `user` and `assistant`
+messages, then sends that conversation context to Gemini. The frontend keeps
+the latest 20 messages in memory and sends them with each request; history is
+not saved after the page is closed or refreshed. If the key is missing, the
+endpoint responds with `503`; if Gemini rejects the request, it responds with
+`502` and logs the provider error in the backend.
