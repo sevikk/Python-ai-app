@@ -10,7 +10,7 @@ schemas, application settings, and the model-calling service:
 backend/
 └── app/
     ├── api/routes/    # HTTP endpoints
-    ├── core/          # Environment-based configuration
+    ├── core/          # Configuration and request limits
     ├── schemas/       # Request and response models
     ├── services/      # Gemini/LangChain interaction
     └── main.py        # FastAPI app assembly and middleware
@@ -38,6 +38,17 @@ The default model is `gemini-3.5-flash-lite`. To choose another model, set
 
 The API is available at `http://localhost:8000`. Interactive API documentation
 is available at `http://localhost:8000/docs`.
+
+Chat requests are limited to 10 per client IP per 60 seconds by default. Set
+`CHAT_RATE_LIMIT` and `CHAT_RATE_WINDOW_SECONDS` to change these values. The
+limit is kept in process memory, so each backend instance tracks its own usage.
+Requests may contain up to 20 messages, with at most 4,000 characters per
+message. Run the backend tests with:
+
+```bash
+cd backend
+python -m unittest discover -v
+```
 
 ## Deploy
 
@@ -92,8 +103,8 @@ cd frontend
 npm start
 ```
 
-Open `http://localhost:4200`. The Angular chat sends messages to the backend at
-`http://localhost:8000/chat`; start the backend first. Angular uses
+Open `http://localhost:4200`. The Angular chat streams responses from the
+backend at `http://localhost:8000/chat/stream`; start the backend first. Angular uses
 `frontend/src/environments/environment.ts` for local development and replaces
 it with `environment.prod.ts` during a production build. The production API URL
 is configured there for the Render service.
@@ -102,14 +113,18 @@ is configured there for the Render service.
 
 ```bash
 curl http://localhost:8000/health
-curl -X POST http://localhost:8000/chat \
+curl -N -X POST http://localhost:8000/chat/stream \
+  -H "Accept: text/event-stream" \
   -H "Content-Type: application/json" \
-  -d '{"message":"Привет"}'
+  -d '{"messages":[{"role":"user","content":"Hello"}]}'
 ```
 
 `/chat` accepts a `messages` array containing recent `user` and `assistant`
-messages, then sends that conversation context to Gemini. The frontend keeps
-the latest 20 messages in memory and sends them with each request; history is
-not saved after the page is closed or refreshed. If the key is missing, the
-endpoint responds with `503`; if Gemini rejects the request, it responds with
-`502` and logs the provider error in the backend.
+messages and returns a complete JSON response. The frontend uses
+`POST /chat/stream`, which accepts the same payload and streams Server-Sent
+Events as Gemini generates text. The frontend keeps the latest 20 messages in
+memory and sends them with each request; history is not saved after the page is
+closed or refreshed. The chat can start a new conversation, automatically
+scroll to new messages, and retry a failed request. If the key is missing,
+either endpoint responds with `503`; provider failures are logged by the
+backend and reported to the client.
