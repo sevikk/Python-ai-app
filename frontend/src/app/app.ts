@@ -6,7 +6,12 @@ import {
   viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ChatApiService, ChatMessage } from './chat-api.service';
+import {
+  ChatApiService,
+  ChatMessage,
+  AuthUser,
+  ConversationSummary,
+} from './chat-api.service';
 
 @Component({
   imports: [FormsModule],
@@ -24,6 +29,14 @@ export class App {
   protected readonly hasReceivedToken = signal(false);
   protected readonly error = signal('');
   protected readonly canRetry = signal(false);
+  protected readonly conversations = signal<ConversationSummary[]>([]);
+  protected readonly activeConversationId = signal<string | null>(null);
+  protected readonly currentUser = signal<AuthUser | null>(null);
+  protected readonly showAuth = signal(false);
+  protected readonly authMode = signal<'login' | 'register'>('login');
+  protected readonly authEmail = signal('');
+  protected readonly authPassword = signal('');
+  protected readonly authError = signal('');
   protected readonly suggestions = [
     'Explain how LangChain works',
     'Help me plan my day',
@@ -31,6 +44,8 @@ export class App {
   ];
 
   constructor(private readonly chatApi: ChatApiService) {
+    void this.loadConversations();
+    void this.loadUser();
     afterRenderEffect(() => {
       this.messages();
       this.isSending();
@@ -50,6 +65,109 @@ export class App {
     this.draft.set('');
     this.error.set('');
     this.canRetry.set(false);
+    this.activeConversationId.set(null);
+  }
+
+  protected async openConversation(conversationId: string): Promise<void> {
+    if (this.isSending()) {
+      return;
+    }
+
+    try {
+      const conversation =
+        await this.chatApi.getConversation(conversationId);
+      this.activeConversationId.set(conversationId);
+      this.messages.set(conversation.messages);
+      this.error.set('');
+      this.canRetry.set(false);
+    } catch (error: unknown) {
+      this.error.set(
+        error instanceof Error ? error.message : 'Could not load this chat.',
+      );
+    }
+  }
+
+  protected async deleteConversation(conversationId: string): Promise<void> {
+    if (this.isSending()) {
+      return;
+    }
+
+    try {
+      await this.chatApi.deleteConversation(conversationId);
+      this.conversations.update((items) =>
+        items.filter((item) => item.id !== conversationId),
+      );
+      if (this.activeConversationId() === conversationId) {
+        this.startNewChat();
+      }
+    } catch (error: unknown) {
+      this.error.set(
+        error instanceof Error ? error.message : 'Could not delete this chat.',
+      );
+    }
+  }
+
+  private async loadConversations(): Promise<void> {
+    try {
+      this.conversations.set(await this.chatApi.listConversations());
+    } catch {
+      this.conversations.set([]);
+    }
+  }
+
+  private async loadUser(): Promise<void> {
+    try {
+      this.currentUser.set(await this.chatApi.me());
+    } catch {
+      this.currentUser.set(null);
+    }
+  }
+
+  protected openAuth(mode: 'login' | 'register'): void {
+    this.authMode.set(mode);
+    this.authEmail.set('');
+    this.authPassword.set('');
+    this.authError.set('');
+    this.showAuth.set(true);
+  }
+
+  protected closeAuth(): void {
+    this.showAuth.set(false);
+  }
+
+  protected async submitAuth(): Promise<void> {
+    this.authError.set('');
+    try {
+      const user =
+        this.authMode() === 'register'
+          ? await this.chatApi.register(
+              this.authEmail(),
+              this.authPassword(),
+            )
+          : await this.chatApi.login(
+              this.authEmail(),
+              this.authPassword(),
+            );
+      this.currentUser.set(user);
+      this.showAuth.set(false);
+      await this.loadConversations();
+    } catch (error: unknown) {
+      this.authError.set(
+        error instanceof Error ? error.message : 'Authentication failed.',
+      );
+    }
+  }
+
+  protected async logout(): Promise<void> {
+    try {
+      await this.chatApi.logout();
+      this.currentUser.set(null);
+      await this.loadConversations();
+    } catch (error: unknown) {
+      this.authError.set(
+        error instanceof Error ? error.message : 'Could not log out.',
+      );
+    }
   }
 
   protected async sendMessage(message = this.draft()): Promise<void> {
@@ -85,7 +203,10 @@ export class App {
         ...messages,
         { role: 'assistant', content: '' },
       ]);
-      for await (const token of this.chatApi.streamReply(conversation)) {
+      for await (const token of this.chatApi.streamReply(
+        conversation,
+        this.activeConversationId(),
+      )) {
         this.hasReceivedToken.set(true);
         this.messages.update((messages) =>
           messages.map((item, index) =>
@@ -95,6 +216,10 @@ export class App {
           ),
         );
       }
+      this.activeConversationId.set(
+        this.chatApi.lastConversationId,
+      );
+      await this.loadConversations();
     } catch (error: unknown) {
       this.messages.update((messages) => {
         const last = messages[messages.length - 1];

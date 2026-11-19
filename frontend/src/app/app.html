@@ -15,6 +15,24 @@
         <span class="status-dot" aria-hidden="true"></span>
         Gemini
       </div>
+      @if (currentUser()) {
+        <button
+          class="new-chat-button"
+          type="button"
+          (click)="logout()"
+          [disabled]="isSending()"
+        >
+          {{ currentUser()?.email }}
+        </button>
+      } @else {
+        <button
+          class="new-chat-button"
+          type="button"
+          (click)="openAuth('login')"
+        >
+          Sign in
+        </button>
+      }
       <button
         class="new-chat-button"
         type="button"
@@ -26,6 +44,96 @@
       </button>
     </div>
   </header>
+
+  @if (showAuth()) {
+    <div class="auth-backdrop" role="presentation" (click)="closeAuth()">
+      <form
+        class="auth-dialog"
+        (ngSubmit)="submitAuth()"
+        (click)="$event.stopPropagation()"
+      >
+        <button
+          class="auth-close"
+          type="button"
+          aria-label="Close"
+          (click)="closeAuth()"
+        >
+          ×
+        </button>
+        <h2>{{ authMode() === 'register' ? 'Create account' : 'Sign in' }}</h2>
+        @if (authMode() === 'login') {
+          <button
+            class="auth-switch"
+            type="button"
+            (click)="openAuth('register')"
+          >
+            Need an account? Register
+          </button>
+        } @else {
+          <button
+            class="auth-switch"
+            type="button"
+            (click)="openAuth('login')"
+          >
+            Already registered? Sign in
+          </button>
+        }
+        @if (authError()) {
+          <p class="auth-error" role="alert">{{ authError() }}</p>
+        }
+        <label>
+          Email
+          <input
+            type="email"
+            name="email"
+            autocomplete="email"
+            [ngModel]="authEmail()"
+            (ngModelChange)="authEmail.set($event)"
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            name="password"
+            autocomplete="current-password"
+            minlength="8"
+            [ngModel]="authPassword()"
+            (ngModelChange)="authPassword.set($event)"
+          />
+        </label>
+        <button
+          class="auth-submit"
+          type="submit"
+          [disabled]="!authEmail().trim() || authPassword().length < 8"
+        >
+          {{ authMode() === 'register' ? 'Create account' : 'Sign in' }}
+        </button>
+      </form>
+    </div>
+  }
+
+  <aside class="history-panel" aria-label="Saved chats">
+    @for (conversation of conversations(); track conversation.id) {
+      <button
+        class="history-item"
+        type="button"
+        [class.active]="activeConversationId() === conversation.id"
+        (click)="openConversation(conversation.id)"
+      >
+        <span>{{ conversation.title }}</span>
+        <span
+          class="delete-chat"
+          role="button"
+          tabindex="0"
+          aria-label="Delete chat"
+          (click)="deleteConversation(conversation.id); $event.stopPropagation()"
+        >
+          ×
+        </span>
+      </button>
+    }
+  </aside>
 
   <section class="conversation" aria-label="Chat with AI">
     <div

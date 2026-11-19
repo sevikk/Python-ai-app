@@ -36,3 +36,18 @@ def get_chat_rate_limit() -> int:
 
 def get_chat_rate_window_seconds() -> int:
     return _get_positive_int("CHAT_RATE_WINDOW_SECONDS", 60)
+
+
+def get_database_url() -> Optional[str]:
+    url = os.getenv("DATABASE_URL")
+    if url and url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql://", 1)
+    return url
+
+
+def get_session_secret() -> str:
+    return os.getenv("SESSION_SECRET", "development-only-session-secret")
+
+
+def get_auth_cookie_secure() -> bool:
+    return os.getenv("AUTH_COOKIE_SECURE", "false").lower() == "true"

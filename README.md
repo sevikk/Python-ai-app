@@ -33,6 +33,53 @@ Add your Gemini API key to `backend/.env`:
 GEMINI_API_KEY=your_api_key
 ```
 
+For PostgreSQL, set `DATABASE_URL` in `backend/.env`, for example:
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/python_ai_app
+```
+
+Start the local database and backend with Docker:
+
+```bash
+docker compose up --build
+```
+
+Set `GEMINI_API_KEY`, `DATABASE_URL`, `SESSION_SECRET`, and
+`AUTH_COOKIE_SECURE=false` in `backend/.env`. The Docker Compose backend
+loads that file automatically.
+
+Register and sign in through `POST /auth/register` and `POST /auth/login`.
+Successful responses set an HttpOnly session cookie. Use `GET /auth/me` to
+check the current user and `POST /auth/logout` to clear the cookie.
+
+For the deployed Cloudflare Pages frontend, configure Render with:
+
+```env
+AUTH_COOKIE_SECURE=true
+CORS_ORIGINS=http://localhost:4200,https://python-ai-app.pages.dev
+```
+
+The frontend sends `credentials: "include"` for chat, conversation, and auth
+requests. Production cookies use `SameSite=None` and `Secure`; a local HTTP
+development setup uses `SameSite=Lax` and no Secure flag.
+When an authenticated user registers or logs in with the browser's anonymous
+session ID, existing chats for that session are claimed by the user. Owned
+conversation list, detail, and delete endpoints only expose the user's own
+chats. Anonymous chats remain visible only to their original session ID.
+
+Alembic creates or upgrades the conversation and message tables automatically
+at startup. Run migrations manually with:
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+`GET /health/db` reports PostgreSQL availability. PostgreSQL failures do not
+break chat responses; history persistence is skipped and logged instead.
+Empty conversations are removed during backend startup.
+
 The default model is `gemini-3.5-flash-lite`. To choose another model, set
 `GEMINI_MODEL` in `.env`. Never put the API key in Angular code or commit it.
 

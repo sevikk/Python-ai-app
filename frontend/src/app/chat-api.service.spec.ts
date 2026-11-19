@@ -54,7 +54,7 @@ describe('ChatApiService', () => {
       'http://localhost:8000/chat/stream',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ messages, conversation_id: null }),
       }),
     );
   });

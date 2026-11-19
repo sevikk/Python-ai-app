@@ -2,3 +2,8 @@ fastapi
 uvicorn[standard]
 langchain-google-genai>=2.1.12,<3
 python-dotenv
+SQLAlchemy>=2.0,<3
+psycopg[binary]>=3.1,<4
+alembic>=1.13,<2
+itsdangerous>=2.2,<3
+email-validator>=2,<3

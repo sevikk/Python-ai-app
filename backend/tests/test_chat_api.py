@@ -110,7 +110,7 @@ class ChatApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('"token": "Hello"', response.text)
         self.assertIn('"token": " back"', response.text)
-        self.assertIn('"done":true', response.text)
+        self.assertIn('"done": true', response.text)
         self.assertEqual(requests[0]["api_key"], "test-key")
 
     def test_stream_reports_provider_failure_as_sse_error(self) -> None:

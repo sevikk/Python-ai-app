@@ -18,6 +18,19 @@ describe('App', () => {
         {
           provide: ChatApiService,
           useValue: {
+            lastConversationId: null,
+            me: async () => null,
+            login: async () => ({ id: 'test-user', email: 'test@example.com' }),
+            register: async () => ({ id: 'test-user', email: 'test@example.com' }),
+            logout: async () => {},
+            listConversations: async () => [],
+            getConversation: async () => ({
+              id: 'test-conversation',
+              title: 'Test',
+              updated_at: '',
+              messages: [],
+            }),
+            deleteConversation: async () => {},
             streamReply: async function* (messages: ChatMessage[]) {
               streamedRequests.push(messages);
               const outcome = streamOutcomes.shift() ?? [];
@@ -151,7 +164,9 @@ describe('App', () => {
       fixture.nativeElement.querySelector('[role="status"]')?.getAttribute('aria-label'),
     ).toBe('Waiting for Gemini');
     expect(
-      (fixture.nativeElement.querySelector('.new-chat-button') as HTMLButtonElement)
+      (Array.from(
+        fixture.nativeElement.querySelectorAll('.new-chat-button') as NodeListOf<HTMLButtonElement>,
+      ).find((button) => button.textContent?.includes('New chat')) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
 
