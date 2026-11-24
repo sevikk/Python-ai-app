@@ -1,0 +1,41 @@
+<aside
+  class="history-panel"
+  [class.mobile-open]="isOpen"
+  aria-label="Saved chats"
+>
+  @if (isLoading && conversations.length === 0) {
+    <p class="history-loading" role="status">Loading chats...</p>
+  } @else {
+    @if (isLoading) {
+      <p class="history-loading" role="status">Refreshing chats...</p>
+    }
+    @if (error) {
+      <div class="history-load-error" role="alert">
+        <p>{{ error }}</p>
+        <button type="button" (click)="retryRequested.emit()">Try again</button>
+      </div>
+    }
+    @for (conversation of conversations; track conversation.id) {
+      <div
+        class="history-item"
+        [class.active]="activeConversationId === conversation.id"
+      >
+        <button
+          class="history-open"
+          type="button"
+          (click)="conversationSelected.emit(conversation.id)"
+        >
+          {{ conversation.title }}
+        </button>
+        <button
+          class="delete-chat"
+          type="button"
+          aria-label="Delete chat"
+          (click)="conversationDeleteRequested.emit(conversation.id)"
+        >
+          ×
+        </button>
+      </div>
+    }
+  }
+</aside>

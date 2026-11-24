@@ -1,0 +1,30 @@
+@if (isLoading) {
+  <p class="task-extraction-status" role="status">Extracting tasks...</p>
+} @else if (error) {
+  <p class="task-extraction-error" role="alert">{{ error }}</p>
+} @else if (result; as extraction) {
+  <section class="task-extraction-result" aria-live="polite">
+    <h2>Extracted tasks</h2>
+    @if (extraction.tasks.length === 0) {
+      <p>No actionable tasks found.</p>
+    } @else {
+      <ul>
+        @for (task of extraction.tasks; track $index) {
+          <li>
+            <span class="extracted-task-title">{{ task.title }}</span>
+            <span
+              class="task-priority"
+              [class.high]="task.priority === 'high'"
+              [class.low]="task.priority === 'low'"
+            >
+              {{ task.priority }}
+            </span>
+            @if (task.due_date) {
+              <span class="task-due-date">Due {{ task.due_date }}</span>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+}

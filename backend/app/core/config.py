@@ -38,6 +38,18 @@ def get_chat_rate_window_seconds() -> int:
     return _get_positive_int("CHAT_RATE_WINDOW_SECONDS", 60)
 
 
+def get_auth_rate_limit() -> int:
+    return _get_positive_int("AUTH_RATE_LIMIT", 5)
+
+
+def get_auth_rate_window_seconds() -> int:
+    return _get_positive_int("AUTH_RATE_WINDOW_SECONDS", 900)
+
+
+def get_auth_ip_rate_limit() -> int:
+    return _get_positive_int("AUTH_IP_RATE_LIMIT", 30)
+
+
 def get_database_url() -> Optional[str]:
     url = os.getenv("DATABASE_URL")
     if url and url.startswith("postgres://"):
@@ -48,7 +60,12 @@ def get_database_url() -> Optional[str]:
 
 
 def get_session_secret() -> str:
-    return os.getenv("SESSION_SECRET", "development-only-session-secret")
+    secret = os.getenv("SESSION_SECRET", "").strip()
+    if len(secret) < 32:
+        raise ValueError(
+            "SESSION_SECRET must be set to a secret of at least 32 characters."
+        )
+    return secret
 
 
 def get_auth_cookie_secure() -> bool:

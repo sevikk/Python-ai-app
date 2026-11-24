@@ -4,6 +4,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.schemas.chat import ChatMessage
+from app.schemas.tasks import TaskExtractionResponse
 
 
 def _create_model(api_key: str, model_name: str) -> ChatGoogleGenerativeAI:
@@ -39,7 +40,38 @@ async def stream_reply(
     api_key: str,
     model_name: str,
 ) -> AsyncIterator[str]:
-    model = _create_model(api_key, model_name)
-    async for chunk in model.astream(_create_conversation(messages)):
-        if isinstance(chunk.content, str) and chunk.content:
-            yield chunk.content
+    stream = _create_model(api_key, model_name).astream(
+        _create_conversation(messages)
+    )
+    try:
+        async for chunk in stream:
+            if isinstance(chunk.content, str) and chunk.content:
+                yield chunk.content
+    finally:
+        if hasattr(stream, "aclose"):
+            await stream.aclose()
+
+
+def extract_tasks(
+    text: str,
+    api_key: str,
+    model_name: str,
+) -> TaskExtractionResponse:
+    structured_model = _create_model(api_key, model_name).with_structured_output(
+        TaskExtractionResponse,
+        method="function_calling",
+    )
+    result = structured_model.invoke(
+        [
+            (
+                "system",
+                "Extract only actionable tasks explicitly stated in the input. "
+                "Do not invent tasks or deadlines. Use an ISO date for a due "
+                "date only when it is explicit; otherwise use null. Use "
+                "medium priority when the text does not clearly indicate "
+                "urgency. Return an empty task list when no tasks are present.",
+            ),
+            ("human", text),
+        ]
+    )
+    return TaskExtractionResponse.model_validate(result)

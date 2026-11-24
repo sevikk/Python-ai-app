@@ -6,20 +6,31 @@ import {
   viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { HistoryPanelComponent } from './history-panel.component';
+import { MarkdownPipe } from '../markdown.pipe';
+import { TaskExtractionResultComponent } from './task-extraction-result.component';
 import {
   ChatApiService,
   ChatMessage,
   AuthUser,
   ConversationSummary,
-} from './chat-api.service';
+  TaskExtractionResponse,
+} from '../chat-api.service';
 
 @Component({
-  imports: [FormsModule],
+  imports: [
+    FormsModule,
+    HistoryPanelComponent,
+    MarkdownPipe,
+    TaskExtractionResultComponent,
+  ],
   selector: 'app-root',
-  styleUrl: './app.css',
+  styleUrl: './app.scss',
   templateUrl: './app.html',
 })
 export class App {
+  private activeRequestController: AbortController | null = null;
+  private taskExtractionController: AbortController | null = null;
   private readonly messageViewport =
     viewChild<ElementRef<HTMLDivElement>>('messageViewport');
 
@@ -38,11 +49,16 @@ export class App {
   protected readonly authPassword = signal('');
   protected readonly authError = signal('');
   protected readonly isUserLoading = signal(true);
+  protected readonly userLoadError = signal('');
   protected readonly isAuthBusy = signal(false);
   protected readonly isHistoryLoading = signal(true);
+  protected readonly historyLoadError = signal('');
   protected readonly isAccountMenuOpen = signal(false);
   protected readonly isHistoryOpen = signal(false);
   protected readonly deleteTarget = signal<string | null>(null);
+  protected readonly extractedTasks = signal<TaskExtractionResponse | null>(null);
+  protected readonly isExtractingTasks = signal(false);
+  protected readonly taskExtractionError = signal('');
   protected readonly suggestions = [
     'Explain how LangChain works',
     'Help me plan my day',
@@ -67,12 +83,15 @@ export class App {
       return;
     }
 
+    this.cancelTaskExtraction();
     this.messages.set([]);
     this.draft.set('');
     this.error.set('');
     this.canRetry.set(false);
     this.activeConversationId.set(null);
     this.isHistoryOpen.set(false);
+    this.extractedTasks.set(null);
+    this.taskExtractionError.set('');
   }
 
   protected async openConversation(conversationId: string): Promise<void> {
@@ -134,10 +153,13 @@ export class App {
 
   private async loadConversations(): Promise<void> {
     this.isHistoryLoading.set(true);
+    this.historyLoadError.set('');
     try {
       this.conversations.set(await this.chatApi.listConversations());
-    } catch {
-      this.conversations.set([]);
+    } catch (error: unknown) {
+      this.historyLoadError.set(
+        error instanceof Error ? error.message : 'Could not load chat history.',
+      );
     } finally {
       this.isHistoryLoading.set(false);
     }
@@ -145,13 +167,24 @@ export class App {
 
   private async loadUser(): Promise<void> {
     this.isUserLoading.set(true);
+    this.userLoadError.set('');
     try {
       this.currentUser.set(await this.chatApi.me());
-    } catch {
-      this.currentUser.set(null);
+    } catch (error: unknown) {
+      this.userLoadError.set(
+        error instanceof Error ? error.message : 'Could not load account.',
+      );
     } finally {
       this.isUserLoading.set(false);
     }
+  }
+
+  protected retryLoadUser(): Promise<void> {
+    return this.loadUser();
+  }
+
+  protected retryLoadConversations(): Promise<void> {
+    return this.loadConversations();
   }
 
   protected openAuth(mode: 'login' | 'register'): void {
@@ -214,11 +247,59 @@ export class App {
       return;
     }
 
+    this.cancelTaskExtraction();
     this.messages.update((messages) => [...messages, { role: 'user', content }]);
     this.draft.set('');
     this.error.set('');
     this.canRetry.set(false);
+    this.extractedTasks.set(null);
+    this.taskExtractionError.set('');
     await this.requestReply();
+  }
+
+  protected async extractTasksFromDraft(): Promise<void> {
+    const text = this.draft().trim();
+    if (!text || this.isSending() || this.isExtractingTasks()) {
+      return;
+    }
+
+    const controller = new AbortController();
+    this.taskExtractionController = controller;
+    this.isExtractingTasks.set(true);
+    this.extractedTasks.set(null);
+    this.taskExtractionError.set('');
+    try {
+      const result = await this.chatApi.extractTasks(text, controller.signal);
+      if (!controller.signal.aborted && this.draft().trim() === text) {
+        this.extractedTasks.set(result);
+      }
+    } catch (error: unknown) {
+      if (!controller.signal.aborted) {
+        this.taskExtractionError.set(
+          error instanceof Error ? error.message : 'Could not extract tasks.',
+        );
+      }
+    } finally {
+      if (this.taskExtractionController === controller) {
+        this.taskExtractionController = null;
+        this.isExtractingTasks.set(false);
+      }
+    }
+  }
+
+  protected updateDraft(value: string): void {
+    if (value !== this.draft()) {
+      this.cancelTaskExtraction();
+    }
+    this.draft.set(value);
+    this.extractedTasks.set(null);
+    this.taskExtractionError.set('');
+  }
+
+  private cancelTaskExtraction(): void {
+    this.taskExtractionController?.abort();
+    this.taskExtractionController = null;
+    this.isExtractingTasks.set(false);
   }
 
   protected async retryLastMessage(): Promise<void> {
@@ -231,9 +312,38 @@ export class App {
     await this.requestReply();
   }
 
+  protected stopGeneration(): void {
+    this.activeRequestController?.abort();
+  }
+
   private async requestReply(): Promise<void> {
+    const controller = new AbortController();
+    this.activeRequestController = controller;
     this.isSending.set(true);
     this.hasReceivedToken.set(false);
+    let pendingTokens = '';
+    let updateTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const flushPendingTokens = (): void => {
+      if (updateTimer !== null) {
+        clearTimeout(updateTimer);
+        updateTimer = null;
+      }
+      if (!pendingTokens) {
+        return;
+      }
+
+      const tokens = pendingTokens;
+      pendingTokens = '';
+      this.hasReceivedToken.set(true);
+      this.messages.update((messages) =>
+        messages.map((item, index) =>
+          index === messages.length - 1
+            ? { ...item, content: item.content + tokens }
+            : item,
+        ),
+      );
+    };
 
     try {
       const conversation = this.messages().slice(-20);
@@ -244,34 +354,51 @@ export class App {
       for await (const token of this.chatApi.streamReply(
         conversation,
         this.activeConversationId(),
+        controller.signal,
       )) {
-        this.hasReceivedToken.set(true);
-        this.messages.update((messages) =>
-          messages.map((item, index) =>
-            index === messages.length - 1
-              ? { ...item, content: item.content + token }
-              : item,
-          ),
-        );
+        pendingTokens += token;
+        if (updateTimer === null) {
+          updateTimer = setTimeout(flushPendingTokens, 50);
+        }
+      }
+      flushPendingTokens();
+      if (controller.signal.aborted) {
+        return;
       }
       this.activeConversationId.set(
         this.chatApi.lastConversationId,
       );
       await this.loadConversations();
     } catch (error: unknown) {
-      this.messages.update((messages) => {
-        const last = messages[messages.length - 1];
-        return last?.role === 'assistant'
-          ? messages.slice(0, -1)
-          : messages;
-      });
-      this.error.set(
-        error instanceof Error
-          ? error.message
-          : 'Could not get a response. Check that the backend is running.',
-      );
-      this.canRetry.set(true);
+      if (controller.signal.aborted) {
+        flushPendingTokens();
+        this.messages.update((messages) => {
+          const last = messages[messages.length - 1];
+          return last?.role === 'assistant' && !last.content
+            ? messages.slice(0, -1)
+            : messages;
+        });
+      } else {
+        this.messages.update((messages) => {
+          const last = messages[messages.length - 1];
+          return last?.role === 'assistant'
+            ? messages.slice(0, -1)
+            : messages;
+        });
+        this.error.set(
+          error instanceof Error
+            ? error.message
+            : 'Could not get a response. Check that the backend is running.',
+        );
+        this.canRetry.set(true);
+      }
     } finally {
+      if (updateTimer !== null) {
+        clearTimeout(updateTimer);
+      }
+      if (this.activeRequestController === controller) {
+        this.activeRequestController = null;
+      }
       this.isSending.set(false);
       this.hasReceivedToken.set(false);
     }

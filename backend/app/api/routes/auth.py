@@ -1,8 +1,17 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_auth_cookie_secure
+from app.core.rate_limit import enforce_auth_rate_limit
 from app.db.auth_models import User
 from app.db.database import get_db
 from app.schemas.auth import AuthRequest, UserResponse
@@ -22,10 +31,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def register(
     auth_request: AuthRequest,
     response: Response,
+    request: Request,
     x_session_id: str = Header("anonymous", alias="X-Session-ID"),
     db: Session = Depends(get_db),
 ) -> UserResponse:
     email = str(auth_request.email).strip().lower()
+    enforce_auth_rate_limit(request, email)
     existing = db.scalar(select(User).where(User.email == email))
     if existing:
         raise HTTPException(
@@ -50,10 +61,12 @@ def register(
 def login(
     auth_request: AuthRequest,
     response: Response,
+    request: Request,
     x_session_id: str = Header("anonymous", alias="X-Session-ID"),
     db: Session = Depends(get_db),
 ) -> UserResponse:
     email = str(auth_request.email).strip().lower()
+    enforce_auth_rate_limit(request, email)
     user = db.scalar(select(User).where(User.email == email))
     if user is None or not verify_password(
         auth_request.password,

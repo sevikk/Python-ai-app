@@ -24,9 +24,32 @@ export interface AuthUser {
   email: string;
 }
 
+export interface ExtractedTask {
+  title: string;
+  priority: 'low' | 'medium' | 'high';
+  due_date: string | null;
+}
+
+export interface TaskExtractionResponse {
+  tasks: ExtractedTask[];
+}
+
 export const FETCHER = new InjectionToken<typeof fetch>('FETCHER', {
   providedIn: 'root',
   factory: () => globalThis.fetch.bind(globalThis),
+});
+
+export const SESSION_STORAGE = new InjectionToken<
+  Pick<Storage, 'getItem' | 'setItem'> | null
+>('SESSION_STORAGE', {
+  providedIn: 'root',
+  factory: () => {
+    try {
+      return globalThis.localStorage;
+    } catch {
+      return null;
+    }
+  },
 });
 
 interface StreamEvent {
@@ -39,10 +62,14 @@ interface StreamEvent {
 @Injectable({ providedIn: 'root' })
 export class ChatApiService {
   private readonly fetcher = inject(FETCHER);
-  private readonly apiUrl = environment.apiUrl;
-  private readonly conversationsUrl = this.apiUrl.replace('/chat/stream', '/conversations');
-  private readonly sessionId = this.getSessionId();
+  private readonly sessionStorage = inject(SESSION_STORAGE);
+  private readonly apiBaseUrl = environment.apiBaseUrl;
+  private readonly sessionId = this.getSessionId(this.sessionStorage);
   lastConversationId: string | null = null;
+
+  private endpoint(path: string): string {
+    return new URL(path, this.apiBaseUrl).toString();
+  }
 
   async register(email: string, password: string): Promise<AuthUser> {
     return this.authRequest('/auth/register', email, password);
@@ -54,7 +81,7 @@ export class ChatApiService {
 
   async me(): Promise<AuthUser | null> {
     const response = await this.fetcher(
-      this.apiUrl.replace('/chat/stream', '/auth/me'),
+      this.endpoint('auth/me'),
       {
         credentials: 'include',
       },
@@ -70,7 +97,7 @@ export class ChatApiService {
 
   async logout(): Promise<void> {
     const response = await this.fetcher(
-      this.apiUrl.replace('/chat/stream', '/auth/logout'),
+      this.endpoint('auth/logout'),
       {
         method: 'POST',
         credentials: 'include',
@@ -87,7 +114,7 @@ export class ChatApiService {
     password: string,
   ): Promise<AuthUser> {
     const response = await this.fetcher(
-      this.apiUrl.replace('/chat/stream', path),
+      this.endpoint(path.replace(/^\//, '')),
       {
         method: 'POST',
         headers: {
@@ -104,17 +131,27 @@ export class ChatApiService {
     return (await response.json()) as AuthUser;
   }
 
-  private getSessionId(): string {
+  private getSessionId(
+    storage: Pick<Storage, 'getItem' | 'setItem'> | null,
+  ): string {
     const storageKey = 'ai-chat-session-id';
-    const existing = localStorage.getItem(storageKey);
-    if (existing) {
-      return existing;
+    try {
+      const existing = storage?.getItem(storageKey);
+      if (existing) {
+        return existing;
+      }
+    } catch {
+      // Fall back to an in-memory session if browser storage is unavailable.
     }
     const generated =
       typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    localStorage.setItem(storageKey, generated);
+    try {
+      storage?.setItem(storageKey, generated);
+    } catch {
+      // The generated ID remains usable for this page session.
+    }
     return generated;
   }
 
@@ -123,7 +160,7 @@ export class ChatApiService {
   }
 
   async listConversations(): Promise<ConversationSummary[]> {
-    const response = await this.fetcher(this.conversationsUrl, {
+    const response = await this.fetcher(this.endpoint('conversations'), {
       credentials: 'include',
       headers: this.sessionHeaders(),
     });
@@ -135,7 +172,7 @@ export class ChatApiService {
 
   async getConversation(conversationId: string): Promise<ConversationDetail> {
     const response = await this.fetcher(
-      `${this.conversationsUrl}/${conversationId}`,
+      this.endpoint(`conversations/${encodeURIComponent(conversationId)}`),
       {
         credentials: 'include',
         headers: this.sessionHeaders(),
@@ -149,7 +186,7 @@ export class ChatApiService {
 
   async deleteConversation(conversationId: string): Promise<void> {
     const response = await this.fetcher(
-      `${this.conversationsUrl}/${conversationId}`,
+      this.endpoint(`conversations/${encodeURIComponent(conversationId)}`),
       {
         method: 'DELETE',
         credentials: 'include',
@@ -159,6 +196,29 @@ export class ChatApiService {
     if (!response.ok) {
       throw await this.responseError(response, 'Could not delete this chat.');
     }
+  }
+
+  async extractTasks(
+    text: string,
+    signal?: AbortSignal,
+  ): Promise<TaskExtractionResponse> {
+    const response = await this.fetcher(
+      this.endpoint('tasks/extract'),
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          ...this.sessionHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text }),
+        signal,
+      },
+    );
+    if (!response.ok) {
+      throw await this.responseError(response, 'Could not extract tasks.');
+    }
+    return (await response.json()) as TaskExtractionResponse;
   }
 
   private async responseError(
@@ -179,9 +239,10 @@ export class ChatApiService {
   async *streamReply(
     messages: ChatMessage[],
     conversationId: string | null = null,
+    signal?: AbortSignal,
   ): AsyncGenerator<string> {
     this.lastConversationId = conversationId;
-    const response = await this.fetcher(this.apiUrl, {
+    const response = await this.fetcher(this.endpoint('chat/stream'), {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -190,6 +251,7 @@ export class ChatApiService {
         'X-Session-ID': this.sessionId,
       },
       body: JSON.stringify({ messages, conversation_id: conversationId }),
+      signal,
     });
 
     if (!response.ok) {
@@ -212,6 +274,7 @@ export class ChatApiService {
     const decoder = new TextDecoder();
     let buffer = '';
     let dataLines: string[] = [];
+    let receivedDoneEvent = false;
 
     const processLine = (line: string): string | null => {
       if (line === '') {
@@ -239,6 +302,7 @@ export class ChatApiService {
           return event.token;
         }
         if (event.done === true) {
+          receivedDoneEvent = true;
           this.lastConversationId =
             typeof event.conversation_id === 'string'
               ? event.conversation_id
@@ -283,7 +347,11 @@ export class ChatApiService {
       if (finalToken !== null) {
         yield finalToken;
       }
+      if (!receivedDoneEvent) {
+        throw new Error('The response stream ended before it was complete.');
+      }
     } finally {
+      await reader.cancel().catch(() => undefined);
       reader.releaseLock();
     }
   }

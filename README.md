@@ -48,6 +48,12 @@ docker compose up --build
 Set `GEMINI_API_KEY`, `DATABASE_URL`, `SESSION_SECRET`, and
 `AUTH_COOKIE_SECURE=false` in `backend/.env`. The Docker Compose backend
 loads that file automatically.
+Generate `SESSION_SECRET` once with
+`python3 -c "import secrets; print(secrets.token_urlsafe(32))"` and keep it
+private; the backend refuses to start if it is missing or shorter than 32
+characters. Authentication endpoints are rate-limited to 5 attempts per
+15 minutes for each IP/email pair, and 30 attempts per IP during the same
+window. These in-memory limits are per application process.
 
 Register and sign in through `POST /auth/register` and `POST /auth/login`.
 Successful responses set an HttpOnly session cookie. Use `GET /auth/me` to
@@ -68,8 +74,11 @@ session ID, existing chats for that session are claimed by the user. Owned
 conversation list, detail, and delete endpoints only expose the user's own
 chats. Anonymous chats remain visible only to their original session ID.
 
-Alembic creates or upgrades the conversation and message tables automatically
-at startup. Run migrations manually with:
+Alembic manages database schema changes. The backend runs `alembic upgrade head`
+at startup. If PostgreSQL is available but a migration fails, startup fails
+instead of serving requests with an outdated schema. If PostgreSQL itself is
+unavailable, chat can still run without history persistence. For local
+development, apply migrations manually before starting the backend:
 
 ```bash
 cd backend
@@ -170,8 +179,13 @@ curl -N -X POST http://localhost:8000/chat/stream \
 messages and returns a complete JSON response. The frontend uses
 `POST /chat/stream`, which accepts the same payload and streams Server-Sent
 Events as Gemini generates text. The frontend keeps the latest 20 messages in
-memory and sends them with each request; history is not saved after the page is
-closed or refreshed. The chat can start a new conversation, automatically
-scroll to new messages, and retry a failed request. If the key is missing,
-either endpoint responds with `503`; provider failures are logged by the
-backend and reported to the client.
+memory and sends them with each request; completed conversations are saved in
+the database-backed chat history. The Stop button cancels the active stream;
+any partial reply remains visible in the current page but is not saved. The
+chat can start a new conversation, automatically scroll to new messages, and
+retry a failed request. Assistant replies render sanitized Markdown with
+highlighted fenced code blocks; untrusted HTML and images are not rendered.
+Use **Extract tasks from text** to request a schema-validated list of tasks,
+including priority and an explicit due date when present.
+If the key is missing, either endpoint responds with `503`; provider failures
+are logged by the backend and reported to the client.

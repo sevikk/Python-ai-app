@@ -1,4 +1,7 @@
+import asyncio
+import os
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -6,16 +9,27 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from sqlalchemy import select
 
+from app.core.rate_limit import InMemoryRateLimiter
 from app.db import database
 from app.db.database import Base
 from app.main import app
 from app.services.passwords import hash_password, verify_password
 from app.db.models import Conversation
 from app.db.auth_models import User
+from app.core.config import get_session_secret
 
 
 class AuthTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.session_secret_patch = patch.dict(
+            os.environ,
+            {"SESSION_SECRET": "test-session-secret-for-backend-tests"},
+        )
+        self.session_secret_patch.start()
+        self.previous_auth_ip_limiter = app.state.auth_ip_rate_limiter
+        self.previous_auth_pair_limiter = app.state.auth_pair_rate_limiter
+        app.state.auth_ip_rate_limiter = InMemoryRateLimiter(30, 900)
+        app.state.auth_pair_rate_limiter = InMemoryRateLimiter(5, 900)
         self.engine = create_engine(
             "sqlite://",
             connect_args={"check_same_thread": False},
@@ -32,10 +46,41 @@ class AuthTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.client.close()
+        app.state.auth_ip_rate_limiter = self.previous_auth_ip_limiter
+        app.state.auth_pair_rate_limiter = self.previous_auth_pair_limiter
         database.engine = None
         database.SessionLocal = None
         Base.metadata.drop_all(self.engine)
         self.engine.dispose()
+        self.session_secret_patch.stop()
+
+    def test_session_secret_must_be_present_and_long_enough(self) -> None:
+        for secret in ("", "too-short"):
+            with self.subTest(secret=secret), patch.dict(
+                os.environ,
+                {"SESSION_SECRET": secret},
+            ), self.assertRaisesRegex(ValueError, "at least 32 characters"):
+                get_session_secret()
+
+        with patch.dict(
+            os.environ,
+            {"SESSION_SECRET": "0123456789abcdef0123456789abcdef"},
+        ):
+            self.assertEqual(
+                get_session_secret(),
+                "0123456789abcdef0123456789abcdef",
+            )
+
+    def test_application_startup_rejects_missing_session_secret(self) -> None:
+        async def start_application() -> None:
+            async with app.router.lifespan_context(app):
+                pass
+
+        with (
+            patch.dict(os.environ, {"SESSION_SECRET": ""}),
+            self.assertRaisesRegex(ValueError, "at least 32 characters"),
+        ):
+            asyncio.run(start_application())
 
     def test_password_hash_round_trip(self) -> None:
         password_hash = hash_password("correct-horse")
@@ -85,6 +130,40 @@ class AuthTests(unittest.TestCase):
         )
 
         self.assertEqual(login.status_code, 401)
+
+    def test_authentication_is_limited_by_normalized_email_and_ip(self) -> None:
+        app.state.auth_pair_rate_limiter = InMemoryRateLimiter(1, 900)
+        first = self.client.post(
+            "/auth/login",
+            json={"email": "User@example.com", "password": "wrong-pass"},
+        )
+        limited = self.client.post(
+            "/auth/register",
+            json={"email": "user@example.com", "password": "correct-horse"},
+        )
+        different_email = self.client.post(
+            "/auth/login",
+            json={"email": "other@example.com", "password": "wrong-pass"},
+        )
+
+        self.assertEqual(first.status_code, 401)
+        self.assertEqual(limited.status_code, 429)
+        self.assertIn("Retry-After", limited.headers)
+        self.assertEqual(different_email.status_code, 401)
+
+    def test_authentication_has_a_separate_per_ip_limit(self) -> None:
+        app.state.auth_ip_rate_limiter = InMemoryRateLimiter(1, 900)
+        first = self.client.post(
+            "/auth/login",
+            json={"email": "first@example.com", "password": "wrong-pass"},
+        )
+        limited = self.client.post(
+            "/auth/login",
+            json={"email": "second@example.com", "password": "wrong-pass"},
+        )
+
+        self.assertEqual(first.status_code, 401)
+        self.assertEqual(limited.status_code, 429)
 
     def test_login_claims_anonymous_conversations(self) -> None:
         with database.SessionLocal() as db:

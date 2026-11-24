@@ -35,7 +35,15 @@ def init_database() -> None:
         candidate_engine = create_engine(database_url, pool_pre_ping=True)
         with candidate_engine.connect():
             pass
+    except Exception:
+        logger.exception(
+            "PostgreSQL is unavailable; chat will continue without history persistence."
+        )
+        engine = None
+        SessionLocal = None
+        return
 
+    try:
         from alembic import command
         from alembic.config import Config
 
@@ -57,6 +65,12 @@ def init_database() -> None:
         else:
             command.upgrade(alembic_config, "head")
 
+    except Exception:
+        candidate_engine.dispose()
+        logger.exception("Could not migrate the PostgreSQL schema.")
+        raise
+
+    try:
         engine = candidate_engine
         SessionLocal = sessionmaker(
             bind=engine,
@@ -73,8 +87,9 @@ def init_database() -> None:
         finally:
             cleanup_session.close()
     except Exception:
+        candidate_engine.dispose()
         logger.exception(
-            "PostgreSQL is unavailable; chat will continue without history persistence."
+            "Could not initialize PostgreSQL persistence."
         )
         engine = None
         SessionLocal = None

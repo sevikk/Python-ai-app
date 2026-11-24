@@ -1,3 +1,4 @@
+import hashlib
 import math
 import threading
 import time
@@ -55,5 +56,24 @@ def enforce_chat_rate_limit(request: Request) -> None:
         raise HTTPException(
             status_code=429,
             detail="Too many chat requests. Please try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def enforce_auth_rate_limit(request: Request, email: str) -> None:
+    client = request.client
+    client_id = client.host if client is not None else "unknown"
+
+    retry_after = request.app.state.auth_ip_rate_limiter.check(client_id)
+    if retry_after is None:
+        email_hash = hashlib.sha256(email.strip().lower().encode()).hexdigest()
+        retry_after = request.app.state.auth_pair_rate_limiter.check(
+            f"{client_id}:{email_hash}"
+        )
+
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many authentication attempts. Please try again later.",
             headers={"Retry-After": str(retry_after)},
         )

@@ -17,6 +17,15 @@
       </div>
       @if (isUserLoading()) {
         <span class="account-loading" role="status">Loading...</span>
+      } @else if (userLoadError()) {
+        <button
+          class="account-load-error"
+          type="button"
+          (click)="retryLoadUser()"
+          [attr.aria-label]="'Could not load account. Retry: ' + userLoadError()"
+        >
+          Retry account
+        </button>
       } @else if (currentUser()) {
         <div class="account-menu">
           <button
@@ -165,38 +174,16 @@
     </div>
   }
 
-  <aside
-    class="history-panel"
-    [class.mobile-open]="isHistoryOpen()"
-    aria-label="Saved chats"
-  >
-    @if (isHistoryLoading()) {
-      <p class="history-loading" role="status">Loading chats...</p>
-    } @else {
-      @for (conversation of conversations(); track conversation.id) {
-        <div
-          class="history-item"
-          [class.active]="activeConversationId() === conversation.id"
-        >
-          <button
-            class="history-open"
-            type="button"
-            (click)="openConversation(conversation.id)"
-          >
-            {{ conversation.title }}
-          </button>
-          <button
-            class="delete-chat"
-            type="button"
-            aria-label="Delete chat"
-            (click)="requestDeleteConversation(conversation.id)"
-          >
-            ×
-          </button>
-        </div>
-      }
-    }
-  </aside>
+  <app-history-panel
+    [conversations]="conversations()"
+    [activeConversationId]="activeConversationId()"
+    [isLoading]="isHistoryLoading()"
+    [error]="historyLoadError()"
+    [isOpen]="isHistoryOpen()"
+    (conversationSelected)="openConversation($event)"
+    (conversationDeleteRequested)="requestDeleteConversation($event)"
+    (retryRequested)="retryLoadConversations()"
+  />
 
   <section class="conversation" aria-label="Chat with AI">
     <div
@@ -255,6 +242,11 @@
                   <span class="typing" role="status" aria-label="Waiting for Gemini">
                     <span></span><span></span><span></span>
                   </span>
+                } @else if (message.role === 'assistant') {
+                  <div
+                    class="markdown-content"
+                    [innerHTML]="message.content | markdown: !($last && isSending())"
+                  ></div>
                 } @else {
                   {{ message.content }}
                 }
@@ -266,6 +258,11 @@
     </div>
 
     <div class="composer-area">
+      <app-task-extraction-result
+        [isLoading]="isExtractingTasks()"
+        [error]="taskExtractionError()"
+        [result]="extractedTasks()"
+      />
       @if (error()) {
         <div class="error-message" role="alert">
           <span>{{ error() }}</span>
@@ -280,24 +277,43 @@
         <textarea
           aria-label="Your message"
           [ngModel]="draft()"
-          (ngModelChange)="draft.set($event)"
+          (ngModelChange)="updateDraft($event)"
           name="message"
           placeholder="Write a message..."
           rows="1"
           [disabled]="isSending()"
           (keydown.enter)="sendMessage(); $event.preventDefault()"
         ></textarea>
-        <button
-          class="send-button"
-          type="submit"
-          [disabled]="!draft().trim() || isSending()"
-          aria-label="Send message"
-        >
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 19V5m0 0L6 11m6-6 6 6" />
-          </svg>
-        </button>
+        @if (isSending()) {
+          <button
+            class="stop-button"
+            type="button"
+            (click)="stopGeneration()"
+            aria-label="Stop generating response"
+          >
+            Stop
+          </button>
+        } @else {
+          <button
+            class="send-button"
+            type="submit"
+            [disabled]="!draft().trim()"
+            aria-label="Send message"
+          >
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 19V5m0 0L6 11m6-6 6 6" />
+            </svg>
+          </button>
+        }
       </form>
+      <button
+        class="extract-tasks-button"
+        type="button"
+        (click)="extractTasksFromDraft()"
+        [disabled]="!draft().trim() || isSending() || isExtractingTasks()"
+      >
+        {{ isExtractingTasks() ? 'Extracting...' : 'Extract tasks from text' }}
+      </button>
       <p class="disclaimer">
         AI can make mistakes. Don’t share sensitive information.
       </p>

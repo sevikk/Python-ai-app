@@ -1,0 +1,82 @@
+:host {
+  display: block;
+}
+
+.task-extraction-result {
+  margin: 0 0 12px;
+  padding: 13px 15px;
+  border: 1px solid #e5e3f7;
+  border-radius: 13px;
+  background: #fff;
+}
+
+.task-extraction-result h2 {
+  margin: 0 0 8px;
+  color: #343548;
+  font-size: 13px;
+}
+
+.task-extraction-result p {
+  margin: 0;
+  color: #77788a;
+  font-size: 12px;
+}
+
+.task-extraction-result ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-extraction-result li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #55566a;
+  font-size: 12px;
+}
+
+.extracted-task-title {
+  flex: 1 1 180px;
+}
+
+.task-priority {
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #62568c;
+  background: #f0eef9;
+  font-size: 10px;
+  text-transform: capitalize;
+
+  &.high {
+    color: #a52e40;
+    background: #fff0f2;
+  }
+
+  &.low {
+    color: #387453;
+    background: #edf8f1;
+  }
+}
+
+.task-due-date {
+  color: #77788a;
+  font-size: 11px;
+}
+
+.task-extraction-status,
+.task-extraction-error {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+
+.task-extraction-status {
+  color: #77788a;
+}
+
+.task-extraction-error {
+  color: #b83245;
+}
