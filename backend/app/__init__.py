@@ -1,0 +1,1 @@
+"""Application package containing the FastAPI backend."""

@@ -1,3 +1,5 @@
+"""HTTP endpoints for account registration, login, and session management."""
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -24,6 +26,7 @@ from app.services.auth import (
 from app.services.passwords import hash_password, verify_password
 from app.services.conversations import claim_anonymous_conversations
 
+# Groups account endpoints under /auth for the API and generated documentation.
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -35,6 +38,7 @@ def register(
     x_session_id: str = Header("anonymous", alias="X-Session-ID"),
     db: Session = Depends(get_db),
 ) -> UserResponse:
+    """Create an account, claim matching anonymous chats, and set its cookie."""
     email = str(auth_request.email).strip().lower()
     enforce_auth_rate_limit(request, email)
     existing = db.scalar(select(User).where(User.email == email))
@@ -65,6 +69,7 @@ def login(
     x_session_id: str = Header("anonymous", alias="X-Session-ID"),
     db: Session = Depends(get_db),
 ) -> UserResponse:
+    """Verify credentials, claim matching anonymous chats, and set the cookie."""
     email = str(auth_request.email).strip().lower()
     enforce_auth_rate_limit(request, email)
     user = db.scalar(select(User).where(User.email == email))
@@ -88,6 +93,7 @@ def me(
     request: Request,
     db: Session = Depends(get_db),
 ) -> UserResponse:
+    """Return the account associated with the signed cookie or 401."""
     user = get_current_user(request, db)
     if user is None:
         raise HTTPException(
@@ -99,6 +105,7 @@ def me(
 
 @router.post("/logout")
 def logout(response: Response) -> dict[str, bool]:
+    """Expire the browser's authentication cookie."""
     response.delete_cookie(
         key=SESSION_COOKIE,
         httponly=True,
@@ -109,6 +116,7 @@ def logout(response: Response) -> dict[str, bool]:
 
 
 def _set_auth_cookie(response: Response, user_id: str) -> None:
+    """Issue a signed, HttpOnly cookie with environment-appropriate flags."""
     secure = get_auth_cookie_secure()
     response.set_cookie(
         key=SESSION_COOKIE,

@@ -1,3 +1,5 @@
+"""Translate chat inputs to LangChain messages and call the Gemini model."""
+
 from collections.abc import AsyncIterator
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -8,6 +10,7 @@ from app.schemas.tasks import TaskExtractionResponse
 
 
 def _create_model(api_key: str, model_name: str) -> ChatGoogleGenerativeAI:
+    """Create a configured Gemini chat model for one provider operation."""
     return ChatGoogleGenerativeAI(
         model=model_name,
         api_key=api_key,
@@ -16,6 +19,7 @@ def _create_model(api_key: str, model_name: str) -> ChatGoogleGenerativeAI:
 
 
 def _create_conversation(messages: list[ChatMessage]) -> list[BaseMessage]:
+    """Map validated API messages to LangChain user and assistant messages."""
     return [
         HumanMessage(content=message.content)
         if message.role == "user"
@@ -29,6 +33,7 @@ def generate_reply(
     api_key: str,
     model_name: str,
 ) -> str:
+    """Invoke Gemini once and return the assistant's complete text response."""
     response = _create_model(api_key, model_name).invoke(
         _create_conversation(messages)
     )
@@ -40,6 +45,7 @@ async def stream_reply(
     api_key: str,
     model_name: str,
 ) -> AsyncIterator[str]:
+    """Yield nonempty text chunks and close the provider stream on cancellation."""
     stream = _create_model(api_key, model_name).astream(
         _create_conversation(messages)
     )
@@ -57,6 +63,7 @@ def extract_tasks(
     api_key: str,
     model_name: str,
 ) -> TaskExtractionResponse:
+    """Ask Gemini for schema-constrained tasks and validate the resulting data."""
     structured_model = _create_model(api_key, model_name).with_structured_output(
         TaskExtractionResponse,
         method="function_calling",

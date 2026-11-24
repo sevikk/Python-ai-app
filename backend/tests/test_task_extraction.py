@@ -1,3 +1,5 @@
+"""Unit tests for structured task extraction and response validation."""
+
 import unittest
 from unittest.mock import patch
 
@@ -8,17 +10,26 @@ from app.services.chat import extract_tasks
 
 
 class StructuredTaskRunnable:
+    """Minimal stand-in that captures model input and returns configured output."""
+
     def __init__(self, result: object = None) -> None:
+        """Store the fake result and initialize captured-message state."""
+        # Configured model response returned by invoke().
         self.result = result
+        # Prompt captured from the extraction service for assertion.
         self.messages: object = None
 
     def invoke(self, messages: object) -> object:
+        """Capture the model prompt and return the configured fixture."""
         self.messages = messages
         return self.result
 
 
 class TaskExtractionTests(unittest.TestCase):
+    """Test the extraction service without making external model requests."""
+
     def test_extract_tasks_uses_pydantic_structured_output(self) -> None:
+        """Use Gemini's structured-output interface and return validated tasks."""
         runnable = StructuredTaskRunnable(
             {
                 "tasks": [
@@ -33,11 +44,14 @@ class TaskExtractionTests(unittest.TestCase):
         structured_output_calls: list[tuple[type[TaskExtractionResponse], str]] = []
 
         class FakeModel:
+            """Expose only the structured-output operation used by the service."""
+
             def with_structured_output(
                 self,
                 schema: type[TaskExtractionResponse],
                 method: str,
             ) -> StructuredTaskRunnable:
+                """Record the selected schema and return the test runnable."""
                 structured_output_calls.append((schema, method))
                 return runnable
 
@@ -61,16 +75,20 @@ class TaskExtractionTests(unittest.TestCase):
         )
 
     def test_extract_tasks_rejects_invalid_structured_data(self) -> None:
+        """Propagate schema validation errors for malformed model output."""
         runnable = StructuredTaskRunnable(
             {"tasks": [{"title": "", "priority": "urgent", "due_date": "soon"}]}
         )
 
         class FakeModel:
+            """Return invalid fixture data through the structured-output API."""
+
             def with_structured_output(
                 self,
                 schema: type[TaskExtractionResponse],
                 method: str,
             ) -> StructuredTaskRunnable:
+                """Ignore schema parameters and return the invalid fixture."""
                 del schema, method
                 return runnable
 

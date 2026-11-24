@@ -1,3 +1,5 @@
+"""Database operations for chat ownership, history, and message replacement."""
+
 from typing import Optional
 
 from sqlalchemy import select
@@ -13,6 +15,7 @@ def get_or_create_conversation(
     conversation_id: Optional[str],
     owner_id: Optional[str] = None,
 ) -> Conversation:
+    """Return a visible requested thread or create a new owned thread."""
     if conversation_id:
         conversation = db.get(Conversation, conversation_id)
         if conversation and (
@@ -33,6 +36,7 @@ def list_conversations(
     session_id: str,
     owner_id: Optional[str] = None,
 ) -> list[Conversation]:
+    """List conversations belonging to an account or anonymous session."""
     query = select(Conversation).order_by(Conversation.updated_at.desc())
     if owner_id is not None:
         query = query.where(Conversation.owner_id == owner_id)
@@ -51,6 +55,7 @@ def get_conversation(
     conversation_id: str,
     owner_id: Optional[str] = None,
 ) -> Optional[Conversation]:
+    """Return a conversation only if it belongs to the supplied identity."""
     conversation = db.get(Conversation, conversation_id)
     if conversation and (
         (owner_id is not None and conversation.owner_id == owner_id)
@@ -67,6 +72,7 @@ def delete_conversation(
     conversation_id: str,
     owner_id: Optional[str] = None,
 ) -> bool:
+    """Delete an accessible conversation, returning false when not found."""
     conversation = get_conversation(
         db,
         session_id,
@@ -81,6 +87,7 @@ def delete_conversation(
 
 
 def delete_empty_conversations(db: Session) -> int:
+    """Remove placeholder conversations without messages and return the count."""
     conversations = list(
         db.scalars(
             select(Conversation).where(~Conversation.messages.any())
@@ -97,6 +104,7 @@ def claim_anonymous_conversations(
     session_id: str,
     owner_id: str,
 ) -> int:
+    """Assign the browser session's anonymous chats to a new account."""
     conversations = list(
         db.scalars(
             select(Conversation).where(
@@ -116,6 +124,7 @@ def replace_conversation_messages(
     conversation: Conversation,
     messages: list[ChatMessage],
 ) -> None:
+    """Replace stored messages and update the conversation's display title."""
     for message in list(conversation.messages):
         db.delete(message)
     db.flush()

@@ -1,4 +1,4 @@
-"""Add auth users and conversation ownership.
+"""Add registered users and optional conversation ownership.
 
 Revision ID: 20261119_add_users
 Revises: 20261119_initial
@@ -7,6 +7,7 @@ Revises: 20261119_initial
 from alembic import op
 import sqlalchemy as sa
 
+# Alembic identifiers describe this migration and its parent in the revision graph.
 revision = "20261119_add_users"
 down_revision = "20261119_initial"
 branch_labels = None
@@ -14,6 +15,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Create user accounts and add an optional owner foreign key to chats."""
     op.create_table(
         "users",
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -48,6 +50,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove ownership and account structures in dependency-safe order."""
     op.drop_constraint(
         "fk_conversations_owner_id_users",
         "conversations",

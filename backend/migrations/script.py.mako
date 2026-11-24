@@ -16,8 +16,10 @@ depends_on = ${repr(depends_on)}
 
 
 def upgrade() -> None:
+    """Apply this generated revision's schema changes."""
     ${upgrades if upgrades else "pass"}
 
 
 def downgrade() -> None:
+    """Reverse this generated revision's schema changes."""
     ${downgrades if downgrades else "pass"}

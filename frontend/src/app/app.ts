@@ -6,16 +6,16 @@ import {
   viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { HistoryPanelComponent } from './history-panel.component';
-import { MarkdownPipe } from '../markdown.pipe';
-import { TaskExtractionResultComponent } from './task-extraction-result.component';
+import { HistoryPanelComponent } from './components/history-panel.component';
+import { MarkdownPipe } from './markdown.pipe';
+import { TaskExtractionResultComponent } from './components/task-extraction-result.component';
 import {
   ChatApiService,
   ChatMessage,
   AuthUser,
   ConversationSummary,
   TaskExtractionResponse,
-} from '../chat-api.service';
+} from './chat-api.service';
 
 @Component({
   imports: [

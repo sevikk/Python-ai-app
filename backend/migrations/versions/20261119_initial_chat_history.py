@@ -1,4 +1,4 @@
-"""Create chat history tables.
+"""Create chat history tables and their message-order constraints.
 
 Revision ID: 20261119_initial
 Revises:
@@ -7,6 +7,7 @@ Revises:
 from alembic import op
 import sqlalchemy as sa
 
+# Alembic identifiers describe this migration and its parent in the revision graph.
 revision = "20261119_initial"
 down_revision = None
 branch_labels = None
@@ -14,6 +15,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Create conversation and message tables with supporting indexes."""
     op.create_table(
         "conversations",
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -71,6 +73,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop message and conversation tables in foreign-key-safe order."""
     op.drop_index("ix_messages_conversation_id", table_name="messages")
     op.drop_table("messages")
     op.drop_index("ix_conversations_session_id", table_name="conversations")

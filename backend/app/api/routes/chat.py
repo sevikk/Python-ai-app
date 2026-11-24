@@ -1,3 +1,5 @@
+"""HTTP endpoints for model replies, SSE streaming, and task extraction."""
+
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -19,11 +21,13 @@ from app.services.conversations import (
 from app.services.auth import get_current_user
 
 logger = logging.getLogger(__name__)
+# Applies the shared chat rate limit before every route in this router.
 router = APIRouter(dependencies=[Depends(enforce_chat_rate_limit)])
 
 
 @router.post("/tasks/extract", response_model=TaskExtractionResponse)
 def extract_tasks_from_text(request: TaskExtractionRequest) -> TaskExtractionResponse:
+    """Extract validated actionable tasks from input using Gemini."""
     api_key = get_gemini_api_key()
     if not api_key:
         raise HTTPException(
@@ -57,6 +61,7 @@ def chat(
     request: ChatRequest,
     x_session_id: str = Header("anonymous", alias="X-Session-ID"),
 ) -> ChatResponse:
+    """Generate a full assistant reply and persist the updated conversation."""
     api_key = get_gemini_api_key()
     if not api_key:
         raise HTTPException(
@@ -116,6 +121,7 @@ async def chat_stream(
     request: ChatRequest,
     x_session_id: str = Header("anonymous", alias="X-Session-ID"),
 ) -> StreamingResponse:
+    """Stream assistant tokens as SSE and persist the completed conversation."""
     api_key = get_gemini_api_key()
     if not api_key:
         raise HTTPException(
@@ -124,6 +130,7 @@ async def chat_stream(
         )
 
     async def events() -> AsyncIterator[str]:
+        """Yield token, completion, or sanitized error events to the client."""
         reply_parts: list[str] = []
         conversation_id = request.conversation_id
         try:

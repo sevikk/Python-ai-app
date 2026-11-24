@@ -1,3 +1,5 @@
+"""Configure Alembic metadata and choose offline or online migration execution."""
+
 from logging.config import fileConfig
 
 from alembic import context
@@ -8,6 +10,7 @@ from app.db import models  # noqa: F401
 from app.core.config import get_database_url
 
 config = context.config
+# Environment configuration overrides the empty sqlalchemy.url in alembic.ini.
 database_url = get_database_url()
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
@@ -19,6 +22,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
+    """Render migrations as SQL without opening a database connection."""
     context.configure(
         url=config.get_main_option("sqlalchemy.url"),
         target_metadata=target_metadata,
@@ -30,6 +34,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    """Connect to the configured database and execute pending migrations."""
     configuration = config.get_section(config.config_ini_section) or {}
     connectable = engine_from_config(
         configuration,
@@ -45,6 +50,7 @@ def run_migrations_online() -> None:
             context.run_migrations()
 
 
+# Alembic sets this flag when generating SQL rather than applying changes.
 if context.is_offline_mode():
     run_migrations_offline()
 else:

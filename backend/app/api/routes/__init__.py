@@ -1,0 +1,1 @@
+"""FastAPI routers grouped by backend resource and operation."""

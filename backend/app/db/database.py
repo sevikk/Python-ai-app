@@ -1,3 +1,5 @@
+"""SQLAlchemy base, engine lifecycle, migrations, and request DB sessions."""
+
 import logging
 from collections.abc import Generator
 from pathlib import Path
@@ -13,9 +15,12 @@ logger = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
+    """Declarative base shared by all ORM models and Alembic metadata."""
+
     pass
 
 
+# Engine and session factory are initialized only when DATABASE_URL is configured.
 engine: Optional[Engine] = None
 SessionLocal: Optional[sessionmaker[Session]] = None
 
@@ -26,6 +31,7 @@ from app.db import auth_models as _auth_models  # noqa: E402,F401
 
 
 def init_database() -> None:
+    """Connect to PostgreSQL, apply migrations, and prepare local sessions."""
     global engine, SessionLocal
     database_url = get_database_url()
     if not database_url:
@@ -96,6 +102,7 @@ def init_database() -> None:
 
 
 def get_db() -> Generator[Session, None, None]:
+    """Yield one request-scoped database session and always close it."""
     if SessionLocal is None:
         from fastapi import HTTPException
 

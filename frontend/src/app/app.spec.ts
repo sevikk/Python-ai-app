@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { ChatMessage } from '../chat-api.service';
-import { ChatApiService } from '../chat-api.service';
+import { ChatMessage } from './chat-api.service';
+import { ChatApiService } from './chat-api.service';
 import { App } from './app';
 
 type StreamStep = string | Error | ((signal?: AbortSignal) => Promise<void>);
