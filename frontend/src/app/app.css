@@ -78,6 +78,75 @@
   gap: 10px;
 }
 
+.account-loading {
+  color: #858697;
+  font-size: 12px;
+}
+
+.account-menu {
+  position: relative;
+}
+
+.account-button {
+  display: inline-flex;
+  max-width: 180px;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  padding: 0 12px;
+  border: 1px solid #e5e5ef;
+  border-radius: 11px;
+  color: #5e587f;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-dropdown {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 150px;
+  padding: 6px;
+  border: 1px solid #e5e5ef;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgb(36 34 71 / 12%);
+}
+
+.account-dropdown button {
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  color: #a52e40;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.account-dropdown button:hover {
+  background: #fff7f7;
+}
+
+.history-toggle {
+  display: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid #e5e5ef;
+  border-radius: 11px;
+  color: #5e587f;
+  background: #fff;
+  cursor: pointer;
+}
+
 .auth-backdrop {
   position: fixed;
   z-index: 20;
@@ -170,6 +239,63 @@
   cursor: not-allowed;
 }
 
+.confirm-backdrop {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(36 35 58 / 25%);
+  backdrop-filter: blur(5px);
+}
+
+.confirm-dialog {
+  width: min(100%, 360px);
+  padding: 24px;
+  border: 1px solid #e5e5ef;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgb(36 34 71 / 18%);
+}
+
+.confirm-dialog h2 {
+  margin: 0 0 8px;
+  color: #25243a;
+}
+
+.confirm-dialog p {
+  margin: 0;
+  color: #858697;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.confirm-actions button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #e5e5ef;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.confirm-actions .confirm-delete {
+  border-color: #d96b7a;
+  color: #fff;
+  background: #b83245;
+}
+
 .history-panel {
   position: absolute;
   z-index: 2;
@@ -189,18 +315,37 @@
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 6px;
-  padding: 10px;
   border: 1px solid transparent;
   border-radius: 10px;
   color: #626376;
   background: transparent;
-  cursor: pointer;
   font: inherit;
   font-size: 12px;
   text-align: left;
 }
 
-.history-item > span:first-child {
+.history-open {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  padding: 10px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-loading {
+  margin: 12px 0;
+  color: #858697;
+  font-size: 12px;
+}
+
+.history-open {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -214,7 +359,13 @@
 }
 
 .delete-chat {
+  width: 34px;
+  height: 34px;
   flex: 0 0 auto;
+  border: 0;
+  color: #858697;
+  background: transparent;
+  cursor: pointer;
   font-size: 16px;
   line-height: 1;
   opacity: 0.55;
@@ -270,11 +421,12 @@
 
 .conversation {
   display: flex;
-  width: 100%;
+  width: calc(100% - 240px);
   min-height: 0;
   flex: 1;
   flex-direction: column;
   align-self: stretch;
+  margin-left: 240px;
 }
 
 .messages {
@@ -643,6 +795,18 @@ textarea::placeholder {
   }
 
   .model-badge {
+    display: none;
+  }
+
+  .account-button {
+    max-width: 110px;
+  }
+
+  .history-toggle {
+    display: grid;
+  }
+
+  .model-badge {
     gap: 6px;
     padding: 7px 9px;
   }
@@ -653,12 +817,35 @@ textarea::placeholder {
   }
 
   .history-panel {
-    display: none;
+    position: fixed;
+    z-index: 18;
+    top: 62px;
+    bottom: 12px;
+    left: 12px;
+    width: min(280px, calc(100% - 24px));
+    display: block;
+    transform: translateX(calc(-100% - 20px));
+    border: 1px solid #e5e5ef;
+    border-right: 1px solid #e5e5ef;
+    border-radius: 14px;
+    background: rgb(255 255 255 / 98%);
+    box-shadow: 0 18px 50px rgb(36 34 71 / 16%);
+    padding: 10px;
+    transition: transform 180ms ease;
+  }
+
+  .history-panel.mobile-open {
+    transform: translateX(0);
   }
 
   .message-list,
   .composer-area {
     width: min(100% - 24px, 820px);
+  }
+
+  .conversation {
+    width: 100%;
+    margin-left: 0;
   }
 
   .messages {

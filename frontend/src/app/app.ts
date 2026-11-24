@@ -37,6 +37,12 @@ export class App {
   protected readonly authEmail = signal('');
   protected readonly authPassword = signal('');
   protected readonly authError = signal('');
+  protected readonly isUserLoading = signal(true);
+  protected readonly isAuthBusy = signal(false);
+  protected readonly isHistoryLoading = signal(true);
+  protected readonly isAccountMenuOpen = signal(false);
+  protected readonly isHistoryOpen = signal(false);
+  protected readonly deleteTarget = signal<string | null>(null);
   protected readonly suggestions = [
     'Explain how LangChain works',
     'Help me plan my day',
@@ -66,12 +72,14 @@ export class App {
     this.error.set('');
     this.canRetry.set(false);
     this.activeConversationId.set(null);
+    this.isHistoryOpen.set(false);
   }
 
   protected async openConversation(conversationId: string): Promise<void> {
     if (this.isSending()) {
       return;
     }
+    this.isHistoryOpen.set(false);
 
     try {
       const conversation =
@@ -100,6 +108,7 @@ export class App {
       if (this.activeConversationId() === conversationId) {
         this.startNewChat();
       }
+      this.deleteTarget.set(null);
     } catch (error: unknown) {
       this.error.set(
         error instanceof Error ? error.message : 'Could not delete this chat.',
@@ -107,19 +116,41 @@ export class App {
     }
   }
 
+  protected requestDeleteConversation(conversationId: string): void {
+    this.deleteTarget.set(conversationId);
+  }
+
+  protected cancelDeleteConversation(): void {
+    this.deleteTarget.set(null);
+  }
+
+  protected toggleAccountMenu(): void {
+    this.isAccountMenuOpen.update((open) => !open);
+  }
+
+  protected toggleHistory(): void {
+    this.isHistoryOpen.update((open) => !open);
+  }
+
   private async loadConversations(): Promise<void> {
+    this.isHistoryLoading.set(true);
     try {
       this.conversations.set(await this.chatApi.listConversations());
     } catch {
       this.conversations.set([]);
+    } finally {
+      this.isHistoryLoading.set(false);
     }
   }
 
   private async loadUser(): Promise<void> {
+    this.isUserLoading.set(true);
     try {
       this.currentUser.set(await this.chatApi.me());
     } catch {
       this.currentUser.set(null);
+    } finally {
+      this.isUserLoading.set(false);
     }
   }
 
@@ -136,7 +167,11 @@ export class App {
   }
 
   protected async submitAuth(): Promise<void> {
+    if (this.isAuthBusy()) {
+      return;
+    }
     this.authError.set('');
+    this.isAuthBusy.set(true);
     try {
       const user =
         this.authMode() === 'register'
@@ -155,10 +190,13 @@ export class App {
       this.authError.set(
         error instanceof Error ? error.message : 'Authentication failed.',
       );
+    } finally {
+      this.isAuthBusy.set(false);
     }
   }
 
   protected async logout(): Promise<void> {
+    this.isAccountMenuOpen.set(false);
     try {
       await this.chatApi.logout();
       this.currentUser.set(null);

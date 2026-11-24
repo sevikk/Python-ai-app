@@ -192,4 +192,48 @@ describe('App', () => {
 
     expect(viewport.scrollTop).toBe(500);
   });
+
+  it('should show account loading and then the sign-in state', async () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.textContent,
+    ).not.toContain('Loading...');
+    expect(
+      fixture.nativeElement.textContent,
+    ).toContain('Sign in');
+  });
+
+  it('should open auth and switch to registration', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    fixture.componentInstance['openAuth']('login');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.auth-dialog h2')?.textContent)
+      .toContain('Sign in');
+
+    fixture.componentInstance['openAuth']('register');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.auth-dialog h2')?.textContent)
+      .toContain('Create account');
+  });
+
+  it('should request deletion and allow cancellation', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    fixture.componentInstance['requestDeleteConversation']('chat-1');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[role="alertdialog"]'))
+      .toBeTruthy();
+
+    fixture.componentInstance['cancelDeleteConversation']();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[role="alertdialog"]'))
+      .toBeFalsy();
+  });
 });

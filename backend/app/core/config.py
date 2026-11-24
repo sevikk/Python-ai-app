@@ -41,7 +41,9 @@ def get_chat_rate_window_seconds() -> int:
 def get_database_url() -> Optional[str]:
     url = os.getenv("DATABASE_URL")
     if url and url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql://", 1)
+        url = url.replace("postgres://", "postgresql://", 1)
+    if url and url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
     return url
 
 

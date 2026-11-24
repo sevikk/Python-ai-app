@@ -15,15 +15,33 @@
         <span class="status-dot" aria-hidden="true"></span>
         Gemini
       </div>
-      @if (currentUser()) {
-        <button
-          class="new-chat-button"
-          type="button"
-          (click)="logout()"
-          [disabled]="isSending()"
-        >
-          {{ currentUser()?.email }}
-        </button>
+      @if (isUserLoading()) {
+        <span class="account-loading" role="status">Loading...</span>
+      } @else if (currentUser()) {
+        <div class="account-menu">
+          <button
+            class="account-button"
+            type="button"
+            aria-haspopup="menu"
+            [attr.aria-expanded]="isAccountMenuOpen()"
+            (click)="toggleAccountMenu()"
+          >
+            {{ currentUser()?.email }}
+            <span aria-hidden="true">⌄</span>
+          </button>
+          @if (isAccountMenuOpen()) {
+            <div class="account-dropdown" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                (click)="logout()"
+                [disabled]="isSending()"
+              >
+                Sign out
+              </button>
+            </div>
+          }
+        </div>
       } @else {
         <button
           class="new-chat-button"
@@ -41,6 +59,15 @@
       >
         <span aria-hidden="true">+</span>
         New chat
+      </button>
+      <button
+        class="history-toggle"
+        type="button"
+        aria-label="Toggle chat history"
+        [attr.aria-expanded]="isHistoryOpen()"
+        (click)="toggleHistory()"
+      >
+        <span aria-hidden="true">☰</span>
       </button>
     </div>
   </header>
@@ -105,33 +132,69 @@
         <button
           class="auth-submit"
           type="submit"
-          [disabled]="!authEmail().trim() || authPassword().length < 8"
+          [disabled]="isAuthBusy() || !authEmail().trim() || authPassword().length < 8"
         >
-          {{ authMode() === 'register' ? 'Create account' : 'Sign in' }}
+          {{ isAuthBusy() ? 'Please wait...' : (authMode() === 'register' ? 'Create account' : 'Sign in') }}
         </button>
       </form>
     </div>
   }
 
-  <aside class="history-panel" aria-label="Saved chats">
-    @for (conversation of conversations(); track conversation.id) {
-      <button
-        class="history-item"
-        type="button"
-        [class.active]="activeConversationId() === conversation.id"
-        (click)="openConversation(conversation.id)"
+  @if (deleteTarget()) {
+    <div class="confirm-backdrop" role="presentation" (click)="cancelDeleteConversation()">
+      <div
+        class="confirm-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-title"
+        (click)="$event.stopPropagation()"
       >
-        <span>{{ conversation.title }}</span>
-        <span
-          class="delete-chat"
-          role="button"
-          tabindex="0"
-          aria-label="Delete chat"
-          (click)="deleteConversation(conversation.id); $event.stopPropagation()"
+        <h2 id="delete-title">Delete this chat?</h2>
+        <p>This removes the conversation and its messages permanently.</p>
+        <div class="confirm-actions">
+          <button type="button" (click)="cancelDeleteConversation()">Cancel</button>
+          <button
+            class="confirm-delete"
+            type="button"
+            (click)="deleteConversation(deleteTarget()!)"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <aside
+    class="history-panel"
+    [class.mobile-open]="isHistoryOpen()"
+    aria-label="Saved chats"
+  >
+    @if (isHistoryLoading()) {
+      <p class="history-loading" role="status">Loading chats...</p>
+    } @else {
+      @for (conversation of conversations(); track conversation.id) {
+        <div
+          class="history-item"
+          [class.active]="activeConversationId() === conversation.id"
         >
-          ×
-        </span>
-      </button>
+          <button
+            class="history-open"
+            type="button"
+            (click)="openConversation(conversation.id)"
+          >
+            {{ conversation.title }}
+          </button>
+          <button
+            class="delete-chat"
+            type="button"
+            aria-label="Delete chat"
+            (click)="requestDeleteConversation(conversation.id)"
+          >
+            ×
+          </button>
+        </div>
+      }
     }
   </aside>
 
